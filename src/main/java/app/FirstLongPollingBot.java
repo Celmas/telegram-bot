@@ -1,3 +1,5 @@
+package app;
+
 import org.telegram.telegrambots.bots.DefaultBotOptions;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
@@ -31,6 +33,10 @@ public class FirstLongPollingBot extends TelegramLongPollingBot {
                     sendMsg(message.getChatId().toString(), "Good choice");
                 }else if (message.getText().matches("Save yourself")){
                     sendMsg(message.getChatId().toString(), "Try again");
+                }else if (message.getText().matches("Chat_id")){
+                    sendMsg(message.getChatId().toString(), message.getChatId().toString());
+                }else if (message.getText().matches("User")){
+                    sendMsg(message.getChatId().toString(), message.getChat().getFirstName() + " " + message.getChat().getLastName() + " " + message.getChat().getUserName());
                 }else {
                     sendMsg(message.getChatId().toString(),"You said: " + message.getText());
                 }
