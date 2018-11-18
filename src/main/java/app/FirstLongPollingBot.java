@@ -1,5 +1,7 @@
 package app;
 
+import models.Notebook;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.telegram.telegrambots.bots.DefaultBotOptions;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
@@ -9,13 +11,23 @@ import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
+import repositories.NotebookRepository;
+import repositories.NotebookRepositoryImpl;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 public class FirstLongPollingBot extends TelegramLongPollingBot {
+    private NotebookRepository repository;
     public FirstLongPollingBot(DefaultBotOptions options) {
         super(options);
+        DriverManagerDataSource datasource = new DriverManagerDataSource();
+        datasource.setDriverClassName("org.postgresql.Driver");
+        datasource.setUsername("postgres");
+        datasource.setPassword("qwerty007");
+        datasource.setUrl("jdbc:postgresql://localhost:5432/telegram_bot_db");
+        this.repository = new NotebookRepositoryImpl(datasource);
     }
 
     public void onUpdateReceived(Update update) {
@@ -25,20 +37,26 @@ public class FirstLongPollingBot extends TelegramLongPollingBot {
             //check if the message has text. it could also  contain for example a location ( message.hasLocation() )
             if(message.hasText()){
                 if (message.getText().matches("/start")){
-                    sendCustomKeyboard(message.getChatId().toString());
-                }else if (message.getText().matches("Felix")){
-                    String url = "https://shop-cdn-m.shpp.ext.zooplus.io/bilder/felix///x/1/400/felix_katze7_1.jpg";
-                    sendImageFromUrl(url,message.getChatId().toString());
-                }else if (message.getText().matches("Kill yourself")){
-                    sendMsg(message.getChatId().toString(), "Good choice");
-                }else if (message.getText().matches("Save yourself")){
-                    sendMsg(message.getChatId().toString(), "Try again");
-                }else if (message.getText().matches("Chat_id")){
-                    sendMsg(message.getChatId().toString(), message.getChatId().toString());
-                }else if (message.getText().matches("User")){
-                    sendMsg(message.getChatId().toString(), message.getChat().getFirstName() + " " + message.getChat().getLastName() + " " + message.getChat().getUserName());
+                    StringBuilder builder = new StringBuilder();
+                    builder.append("commands:\n")
+                            .append("/show - показать все записи\n")
+                            .append("/add - добавить запись\n")
+                            .append("/edit - изменить запись\n")
+                            .append("\n")
+                            .append("Введите ФИО, для просмотра полной информации");
+                    sendMsg(message.getChatId().toString(), builder.toString());
+                }else if (message.getText().matches("/add")){
+                    sendMsg(message.getChatId().toString(),"Введите ФИО");
+                }else if (message.getText().matches("/edit")){
+                    sendMsg(message.getChatId().toString(),"Введите ФИО");
+                }else if (message.getText().matches("/show")){
+                    sendMsg(message.getChatId().toString(),"Введите ФИО");
                 }else {
-                    sendMsg(message.getChatId().toString(),"You said: " + message.getText());
+                    String messageText[] = message.getText().split(" ");
+                    Optional<Notebook> candidate = repository.findBySNP(message.getChatId(), messageText[0], messageText[1], messageText[2]);
+                    if (candidate.isPresent()){
+                        sendMsg(message.getChatId().toString(), candidate.get().toString());
+                    }
                 }
             }//end if()
         }//end  if()
