@@ -4,22 +4,30 @@ import models.Notebook;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.telegram.telegrambots.bots.DefaultBotOptions;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
+import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
+import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException;
+import org.telegram.telegrambots.meta.updateshandlers.SentCallback;
 import repositories.NotebookRepository;
 import repositories.NotebookRepositoryImpl;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 public class FirstLongPollingBot extends TelegramLongPollingBot {
     private NotebookRepository repository;
+
     public FirstLongPollingBot(DefaultBotOptions options) {
         super(options);
         DriverManagerDataSource datasource = new DriverManagerDataSource();
@@ -31,92 +39,140 @@ public class FirstLongPollingBot extends TelegramLongPollingBot {
     }
 
     public void onUpdateReceived(Update update) {
-        if(update.hasMessage()){
+        if (update.hasMessage()) {
             Message message = update.getMessage();
 
-            //check if the message has text. it could also  contain for example a location ( message.hasLocation() )
-            if(message.hasText()){
-                if (message.getText().matches("/start")){
-                    StringBuilder builder = new StringBuilder();
-                    builder.append("commands:\n")
-                            .append("/show - показать все записи\n")
-                            .append("/add - добавить запись\n")
-                            .append("/edit - изменить запись\n")
-                            .append("\n")
-                            .append("Введите ФИО, для просмотра полной информации");
-                    sendMsg(message.getChatId().toString(), builder.toString());
-                }else if (message.getText().matches("/add")){
-                    sendMsg(message.getChatId().toString(),"Введите ФИО");
-                }else if (message.getText().matches("/edit")){
-                    sendMsg(message.getChatId().toString(),"Введите ФИО");
-                }else if (message.getText().matches("/show")){
-                    sendMsg(message.getChatId().toString(),"Введите ФИО");
-                }else {
+            if (message.hasText()) {
+                if ("/start".equalsIgnoreCase(message.getText()) || "/help".equalsIgnoreCase(message.getText())) {
+                    String commands = "Команды:\n" +
+                            "/show - показать все записи\n" +
+                            "/add - добавить запись\n" +
+                            "/edit - изменить запись\n" +
+                            "/del - удаление записи\n" +
+                            "\n" +
+                            "Введите ФИО, для просмотра полной информации";
+                    sendMsg(message.getChatId().toString(), commands);
+                }else if(message.getText().toLowerCase().startsWith("/add")){
+                    if ("/add".equalsIgnoreCase(message.getText())) {
+                        sendMsg(message.getChatId().toString(), "Введите /add <Фамилия> <Имя> <Отчество> <Номер телефона> <Описание>\nБез '<' и '>'");
+                    }else {
+                        String messageText[] = message.getText().split(" ");
+                        if (messageText.length > 5){
+                            String surname = messageText[1];
+                            String name = messageText[2];
+                            String patronymic = messageText[3];
+                            String phone = messageText [4];
+                            StringBuilder description = new StringBuilder();
+                            for (int i = 5; i < messageText.length; i++){
+                                description.append(messageText[i]).append(" ");
+                            }
+                            repository.save(Notebook.builder()
+                                    .chatId(message.getChatId())
+                                    .surname(surname)
+                                    .name(name)
+                                    .patronymic(patronymic)
+                                    .phone(phone)
+                                    .description(description.toString())
+                                    .build());
+                            sendMsg(message.getChatId().toString(), "Успешно добавлен");
+                        }else {
+                            sendMsg(message.getChatId().toString(), "Напишите /add для получения информации по добавлению записи");
+                        }
+                    }
+                }else if(message.getText().toLowerCase().startsWith("/edit")){
+                    if ("/edit".equalsIgnoreCase(message.getText())) {
+                        sendMsg(message.getChatId().toString(), "Напишите /edit <номер записи> <Фамилия> <Имя> <Отчество> <Номер телефона> <Описание>\nБез '<' и '>'");
+                    } else {
+                        String messageText[] = message.getText().split(" ");
+                        if (messageText.length > 6){
+                            List<Notebook> notebooks = repository.findByChatId(message.getChatId());
+                            Notebook notebook = notebooks.get(Integer.parseInt(messageText[1])-1);
+                            notebook.setSurname(messageText[2]);
+                            notebook.setName(messageText[3]);
+                            notebook.setPatronymic(messageText[4]);
+                            notebook.setPhone(messageText[5]);
+                            StringBuilder description = new StringBuilder();
+                            for (int i = 6; i < messageText.length; i++){
+                                description.append(messageText[i]).append(" ");
+                            }
+                            notebook.setDescription(description.toString());
+                            repository.update(notebook);
+                            sendMsg(message.getChatId().toString(), "Запись " + messageText[1] + "обновлена");
+                        } else {
+                            sendMsg(message.getChatId().toString(), "Напишите /edit для получения информации по изменению записи");
+                        }
+                    }
+                } else if ("/show".equalsIgnoreCase(message.getText())) {
+                    List<Notebook> notebooks = repository.findByChatId(message.getChatId());
+                    StringBuilder stringBuilder = new StringBuilder();
+                    if (notebooks.size() == 0) {
+                        sendMsg(message.getChatId().toString(), "Пусто :(\nСначала добвьте запись с помощью /add");
+                    } else{
+                        int i = 1;
+                        for (Notebook notebook : notebooks) {
+                            stringBuilder.append(i++)
+                                    .append(" ")
+                                    .append(notebook.getSurname())
+                                    .append(" ")
+                                    .append(notebook.getName())
+                                    .append(" ")
+                                    .append(notebook.getPatronymic())
+                                    .append("\n");
+                        }
+                        sendMsg(message.getChatId().toString(), stringBuilder.toString());
+                    }
+                } else if ("/del".equalsIgnoreCase(message.getText())) {
+                    sendCustomKeyboard(message.getChatId().toString(), repository.findByChatId(message.getChatId()));
+                } else {
                     String messageText[] = message.getText().split(" ");
-                    Optional<Notebook> candidate = repository.findBySNP(message.getChatId(), messageText[0], messageText[1], messageText[2]);
-                    if (candidate.isPresent()){
-                        sendMsg(message.getChatId().toString(), candidate.get().toString());
+                    if (messageText.length == 3){
+                        Optional<Notebook> candidate = repository.findBySNP(message.getChatId(), messageText[0], messageText[1], messageText[2]);
+                        if (candidate.isPresent()){
+                            Notebook notebook = candidate.get();
+                            sendMsg(message.getChatId().toString(), notebook.toString());
+                        }else sendMsg(message.getChatId().toString(), "Такого пользователя нет");
+                    }else {
+                        sendMsg(message.getChatId().toString(), "Напишите /help для получения информации по работе с ботом");
                     }
                 }
-            }//end if()
-        }//end  if()
+            }
+        }else if (update.hasCallbackQuery()){
+            String callData = update.getCallbackQuery().getData();
+            if(callData.toLowerCase().startsWith("del_")){
+                String[] callDataArray = callData.split("_");
+                repository.delete(Long.parseLong(callDataArray[1]));
+            }
+        }
     }
 
-    private void sendMsg(String chatId, String message){
+    private void sendMsg(String chatId, String message) {
         SendMessage sendMessageRequest = new SendMessage();
         sendMessageRequest.setChatId(chatId); //who should get the message? the sender from which we got the message...
         sendMessageRequest.setText(message);
         try {
-            execute(sendMessageRequest); //at the end, so some magic and send the message ;)
+            execute(sendMessageRequest);
         } catch (TelegramApiException e) {
             //do some error handling
         }//end catch()
     }
 
-    public void sendCustomKeyboard(String chatId) {
+    private void sendCustomKeyboard(String chatId, List<Notebook> notebooks) {
         SendMessage message = new SendMessage();
         message.setChatId(chatId);
-        message.setText("Choose what do you prefer");
+        message.setText("Выберите какую запись удалить");
 
-        // Create ReplyKeyboardMarkup object
-        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
-        // Create the keyboard (list of keyboard rows)
-        List<KeyboardRow> keyboard = new ArrayList<>();
-        // Create a keyboard row
-        KeyboardRow row = new KeyboardRow();
-        // Set each button, you can also use KeyboardButton objects if you need something else than text
-        row.add("Kill yourself");
-        // Add the first row to the keyboard
-        keyboard.add(row);
-        // Create another keyboard row
-        row = new KeyboardRow();
-        // Set each button for the second line
-        row.add("Save yourself");
-        // Add the second row to the keyboard
-        keyboard.add(row);
-        // Set the keyboard to the markup
-        keyboardMarkup.setKeyboard(keyboard);
-        // Add it to the message
-        message.setReplyMarkup(keyboardMarkup);
+        InlineKeyboardMarkup markupInline = new InlineKeyboardMarkup();
+        List<List<InlineKeyboardButton>> rowsInline = new ArrayList<>();
+        notebooks.forEach(notebook -> {
+            List<InlineKeyboardButton> rowInline = new ArrayList<>();
+            rowInline.add(new InlineKeyboardButton().setText(notebook.getSurname() + " " + notebook.getName() + " " + notebook.getPatronymic()).setCallbackData("del_" + notebook.getId()));
+            rowsInline.add(rowInline);
 
+        });
+        markupInline.setKeyboard(rowsInline);
+        message.setReplyMarkup(markupInline);
         try {
-            // Send the message
             execute(message);
-        } catch (TelegramApiException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public void sendImageFromUrl(String url, String chatId) {
-        // Create send method
-        SendPhoto sendPhotoRequest = new SendPhoto();
-        // Set destination chat id
-        sendPhotoRequest.setChatId(chatId);
-        // Set the photo url as a simple photo
-        sendPhotoRequest.setPhoto(url);
-        try {
-            // Execute the method
-            execute(sendPhotoRequest);
         } catch (TelegramApiException e) {
             e.printStackTrace();
         }

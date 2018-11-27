@@ -17,4 +17,17 @@ public class Notebook {
     private String patronymic;
     private String phone;
     private String description;
+
+    @Override
+    public String toString() {
+        return surname +
+                " " +
+                name +
+                " " +
+                patronymic +
+                " " +
+                phone +
+                " " +
+                description;
+    }
 }

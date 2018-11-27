@@ -7,8 +7,8 @@ import org.telegram.telegrambots.meta.TelegramBotsApi;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException;
 
 public class Main{
-    private static String PROXY_HOST = "139.59.23.77" /* proxy host */;
-    private static Integer PROXY_PORT = 1080 /* proxy port */;
+    private static String PROXY_HOST = "79.106.142.8" /* proxy host */;
+    private static Integer PROXY_PORT = 9999 /* proxy port */;
 
     public static void main(String[] args) {
         ApiContextInitializer.init();
