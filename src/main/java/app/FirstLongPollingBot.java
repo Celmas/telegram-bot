@@ -41,7 +41,6 @@ public class FirstLongPollingBot extends TelegramLongPollingBot {
     public void onUpdateReceived(Update update) {
         if (update.hasMessage()) {
             Message message = update.getMessage();
-
             if (message.hasText()) {
                 if ("/start".equalsIgnoreCase(message.getText()) || "/help".equalsIgnoreCase(message.getText())) {
                     String commands = "Команды:\n" +
@@ -147,13 +146,13 @@ public class FirstLongPollingBot extends TelegramLongPollingBot {
 
     private void sendMsg(String chatId, String message) {
         SendMessage sendMessageRequest = new SendMessage();
-        sendMessageRequest.setChatId(chatId); //who should get the message? the sender from which we got the message...
+        sendMessageRequest.setChatId(chatId);
         sendMessageRequest.setText(message);
         try {
             execute(sendMessageRequest);
         } catch (TelegramApiException e) {
-            //do some error handling
-        }//end catch()
+            e.printStackTrace();
+        }
     }
 
     private void sendCustomKeyboard(String chatId, List<Notebook> notebooks) {
